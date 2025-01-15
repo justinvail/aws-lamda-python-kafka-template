@@ -1,0 +1,28 @@
+{
+	"namespace": "example.avro",
+	"type": "record",
+	"name": "User",
+	"fields": [
+		{
+			"name": "user_name",
+			"type": [
+				"string",
+				"null"
+			]
+		},
+		{
+			"name": "old_id",
+			"type": [
+				"int",
+				"null"
+			]
+		},
+		{
+			"name": "new_id",
+			"type": [
+				"int",
+				"null"
+			]
+		}
+	]
+}
