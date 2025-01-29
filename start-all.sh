@@ -32,15 +32,13 @@ echo "Creating python lambda function and deploying to localstack within docker"
 ## Variables
 LAMBDA_DIR="./lambda_function"
 LAMBDA_NAME="lambda_function"
-LAMBDA_FILE="$LAMBDA_NAME.py"
-AVRO_FILE="user.avsc"
 LAMBDA_ZIP="$LAMBDA_NAME.zip"
 KAFKA_TOPIC="user-id-change-topic"
 AWS_ACCOUNT="000000000000"
 
 # Package the Lambda function
 echo "Packaging Lambda function..."
-cd $LAMBDA_DIR
+cd $LAMBDA_DIR || exit
 zip -r "../$LAMBDA_ZIP" .
 cd -- "${BASH_SOURCE%/*}/" || exit
 # Create the Lambda function
@@ -71,14 +69,14 @@ awslocal iam create-policy --policy-name LambdaKafkaPolicy --policy-document \
         "lambda:InvokeFunction",
         "lambda:CreateEventSourceMapping"
       ],
-      "Resource": "arn:aws:lambda:us-east-1:000000000000:function:KafkaConsumerFunction"
+      "Resource": "arn:aws:lambda:us-east-1:'$AWS_ACCOUNT':function:KafkaConsumerFunction"
     },
     {
       "Effect": "Allow",
       "Action": [
         "secretsmanager:GetSecretValue"
       ],
-      "Resource": "arn:aws:secretsmanager:us-east-1:000000000000:secret:localstack-FtaAYP"
+      "Resource": "arn:aws:secretsmanager:us-east-1:'$AWS_ACCOUNT':secret:localstack-FtaAYP"
     },
     {
       "Effect": "Allow",
@@ -86,12 +84,12 @@ awslocal iam create-policy --policy-name LambdaKafkaPolicy --policy-document \
         "kafka:DescribeCluster",
         "kafka:Consume"
       ],
-      "Resource": "arn:aws:kafka:us-east-1:000000000000:cluster/your-cluster-name/*"
+      "Resource": "arn:aws:kafka:us-east-1:'$AWS_ACCOUNT':cluster/your-cluster-name/*"
     }
   ]
 }'
 
-awslocal iam attach-role-policy --role-name lambda-role --policy-arn arn:aws:iam::000000000000:policy/LambdaKafkaPolicy
+awslocal iam attach-role-policy --role-name lambda-role --policy-arn arn:aws:iam::"$AWS_ACCOUNT":policy/LambdaKafkaPolicy
 
 awslocal iam list-attached-role-policies --role-name lambda-role
 
@@ -101,7 +99,7 @@ echo "$ARN"
 
 #https://docs.localstack.cloud/user-guide/integrations/kafka/
 #https://aws.amazon.com/blogs/compute/using-self-hosted-apache-kafka-as-an-event-source-for-aws-lambda/
-#Seems like the only way to setup the event source mapping is through awslocal cli.  I can't get sam + cloudformation template to work
+#Seems like the only way to setup the event source mapping is through aws local cli.  I can't get sam + cloudformation template to work
 
 #This would be how you use a cloudformation template.yml with sam
 #sam validate --region us-east-1
@@ -112,7 +110,7 @@ awslocal lambda create-function \
     --function-name KafkaConsumerFunction \
     --handler lambda_function.handler \
     --runtime python3.8 \
-    --role arn:aws:iam::000000000000:role/lambda-role \
+    --role arn:aws:iam::"$AWS_ACCOUNT":role/lambda-role \
     --zip-file fileb://lambda_function.zip \
     >/dev/null
 
@@ -126,7 +124,7 @@ awslocal logs create-log-group --log-group-name "/aws/lambda/$FUNCTION_NAME"
 awslocal lambda create-event-source-mapping \
     --topics "$KAFKA_TOPIC" \
     --source-access-configuration Type=PLAINTEXT,URI="$ARN" \
-    --function-name arn:aws:lambda:us-east-1:000000000000:function:"$FUNCTION_NAME" \
+    --function-name arn:aws:lambda:us-east-1:"$AWS_ACCOUNT":function:"$FUNCTION_NAME" \
     --self-managed-event-source '{"Endpoints":{"KAFKA_BOOTSTRAP_SERVERS":["broker:29092"]}}' \
     >/dev/null
 

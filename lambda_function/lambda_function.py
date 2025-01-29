@@ -19,6 +19,7 @@ USER_SCHEMA = {
     ],
 }
 
+
 def deserialize_avro_message(avro_bytes):
     """Deserialize the Avro message using fastavro."""
     try:
@@ -40,6 +41,7 @@ def deserialize_avro_message(avro_bytes):
         logger.error(f"Raw message (hex): {avro_bytes.hex() if isinstance(avro_bytes, (bytes, bytearray)) else 'N/A'}")
         raise
 
+
 def process_record(record):
     """Process a single Kafka record."""
     try:
@@ -56,6 +58,7 @@ def process_record(record):
     except Exception as e:
         logger.error(f"Error processing record: {str(e)}")
         raise
+
 
 def handler(event, context):
     """Main Lambda handler function."""
@@ -77,7 +80,8 @@ def handler(event, context):
                 process_record(record)
             except Exception as e:
                 # Log the error and add to failed records
-                logger.error(f"Failed to process record {record.get('kafka', {}).get('offset')}: {str(e)}")
+                logger.error(
+                    f"Failed to process record {record.get('kafka', {}).get('offset')}: {str(e)}")
                 failed_records.append({
                     "itemIdentifier": record.get('kafka', {}).get('offset')
                 })

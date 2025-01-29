@@ -71,7 +71,7 @@ producer = Producer(kafka_config)
 
 # Generate and produce 100 messages
 try:
-    for _ in range(100):
+    for _ in range(10000):
         sample_data = generate_sample_data()
         serialized_data = avro_serializer(sample_data,
                                           SerializationContext(topic_name, MessageField.VALUE))

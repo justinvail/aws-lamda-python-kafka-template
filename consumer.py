@@ -1,4 +1,3 @@
-import random
 from confluent_kafka import Consumer, KafkaException, KafkaError
 from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry.avro import AvroDeserializer
@@ -47,13 +46,14 @@ try:
         if msg is None:
             continue  # No message available, continue polling
         if msg.error():
-            if msg.error().code() == KafkaError._PARTITION_EOF:
+            if msg.error().code() == KafkaError.PARTITION_EOF:
                 print(f"End of partition reached {msg.partition}")
             else:
                 raise KafkaException(msg.error())
         else:
             # Deserialize the Avro message value
-            value = avro_deserializer(msg.value(), SerializationContext(msg.topic(), MessageField.VALUE))
+            value = avro_deserializer(msg.value(), SerializationContext(msg.topic(),
+                                                                        MessageField.VALUE))
             print(f"Consumed message: {value}")
 
 except KeyboardInterrupt:
