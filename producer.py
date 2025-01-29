@@ -5,7 +5,7 @@ from confluent_kafka.schema_registry.avro import AvroSerializer
 from confluent_kafka.serialization import SerializationContext, MessageField
 
 # Load the Avro schema from an external file
-with open("user.avsc", "r") as schema_file:
+with open("lambda_function/user.avsc", "r") as schema_file:
     avro_schema_str = schema_file.read()
 
 # Kafka topic name
@@ -13,32 +13,35 @@ topic_name = "user-id-change-topic"
 
 # Kafka configuration
 kafka_config = {
-    'bootstrap.servers': 'localhost:9092',  # Replace with your Kafka broker address
+  'bootstrap.servers': 'localhost:9092',
 }
 
 # Schema Registry configuration
 schema_registry_config = {
-    'url': 'http://localhost:8081'  # Replace with your Schema Registry URL
+  'url': 'http://localhost:8081'
 }
 
+
 def delivery_report(err, msg):
-    """ Callback for delivery reports. """
     if err is not None:
         print("Message delivery failed: {}".format(err))
     else:
         print("Message delivered to {} [{}]".format(msg.topic(), msg.value()))
 
+
 def generate_user_name(first_name, last_name):
-    """ Combine first and last names with an underscore. """
     return f"{first_name}_{last_name}".lower()
 
+
 def generate_random_id():
-    """ Generate a random ID between 10000000 and 99999999. """
     return random.randint(10000000, 99999999)
 
+
 def generate_sample_data():
-    first_names = ["John", "Jane", "Alice", "Bob", "Michael", "Sarah", "David", "Emily", "Chris", "Emma"]
-    last_names = ["Doe", "Smith", "Johnson", "Brown", "Williams", "Taylor", "Anderson", "Thomas", "Jackson", "White"]
+    first_names = ["John", "Jane", "Alice", "Bob", "Michael", "Sarah", "David", "Emily", "Chris",
+                   "Emma"]
+    last_names = ["Doe", "Smith", "Johnson", "Brown", "Williams", "Taylor", "Anderson", "Thomas",
+                  "Jackson", "White"]
 
     first_name = random.choice(first_names)
     last_name = random.choice(last_names)
@@ -47,10 +50,11 @@ def generate_sample_data():
     new_id = generate_random_id()
 
     return {
-        "user_name": user_name,
-        "old_id": old_id,
-        "new_id": new_id
+      "user_name": user_name,
+      "old_id": old_id,
+      "new_id": new_id
     }
+
 
 # Initialize the Schema Registry client
 schema_registry_client = SchemaRegistryClient(schema_registry_config)
@@ -69,7 +73,8 @@ producer = Producer(kafka_config)
 try:
     for _ in range(100):
         sample_data = generate_sample_data()
-        serialized_data = avro_serializer(sample_data, SerializationContext(topic_name, MessageField.VALUE))
+        serialized_data = avro_serializer(sample_data,
+                                          SerializationContext(topic_name, MessageField.VALUE))
 
         producer.produce(
             topic=topic_name,

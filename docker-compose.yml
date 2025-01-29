@@ -2,9 +2,9 @@ version: '3.9'
 services:
 
   broker:
+    container_name: broker
     image: confluentinc/cp-server:7.8.0
     hostname: broker
-    container_name: broker
     ports:
       - "9092:9092"
       - "9101:9101"
@@ -32,9 +32,7 @@ services:
       KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
       CONFLUENT_METRICS_ENABLE: 'true'
       CONFLUENT_SUPPORT_CUSTOMER_ID: 'anonymous'
-      # Replace CLUSTER_ID with a unique base64 UUID using "bin/kafka-storage.sh random-uuid"
-      # See https://docs.confluent.io/kafka/operations-tools/kafka-tools.html#kafka-storage-sh
-      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+      CLUSTER_ID: 'LocalKafkaCluster'
 
   init-broker:
     container_name: init-broker
@@ -51,13 +49,13 @@ services:
       kafka-topics --bootstrap-server broker:29092 --create --if-not-exists --topic user-id-change-topic --replication-factor 1 --partitions 1
 
       echo -e 'Successfully created the following topics:'
-      kafka-topics --bootstrap-server kafka:29092 --list
+      kafka-topics --bootstrap-server broker:29092 --list
       "
 
   schema-registry:
+    container_name: schema-registry
     image: confluentinc/cp-schema-registry:7.8.0
     hostname: schema-registry
-    container_name: schema-registry
     depends_on:
       - broker
     ports:
@@ -68,9 +66,9 @@ services:
       SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
 
   connect:
+    container_name: connect
     image: cnfldemos/cp-server-connect-datagen:0.6.4-7.6.0
     hostname: connect
-    container_name: connect
     depends_on:
       - broker
       - schema-registry
@@ -90,16 +88,15 @@ services:
       CONNECT_KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
       CONNECT_VALUE_CONVERTER: io.confluent.connect.avro.AvroConverter
       CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry:8081
-      # CLASSPATH required due to CC-2422
       CLASSPATH: /usr/share/java/monitoring-interceptors/monitoring-interceptors-7.8.0.jar
       CONNECT_PRODUCER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringProducerInterceptor"
       CONNECT_CONSUMER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringConsumerInterceptor"
       CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components"
 
   control-center:
+    container_name: control-center
     image: confluentinc/cp-enterprise-control-center:7.8.0
     hostname: control-center
-    container_name: control-center
     depends_on:
       - broker
       - schema-registry
@@ -121,9 +118,9 @@ services:
       PORT: 9021
 
   ksqldb-server:
+    container_name: ksqldb-server
     image: confluentinc/cp-ksqldb-server:7.8.0
     hostname: ksqldb-server
-    container_name: ksqldb-server
     depends_on:
       - broker
       - connect
@@ -144,8 +141,8 @@ services:
       KSQL_KSQL_LOGGING_PROCESSING_STREAM_AUTO_CREATE: 'true'
 
   ksqldb-cli:
-    image: confluentinc/cp-ksqldb-cli:7.8.0
     container_name: ksqldb-cli
+    image: confluentinc/cp-ksqldb-cli:7.8.0
     depends_on:
       - broker
       - connect
@@ -154,9 +151,9 @@ services:
     tty: true
 
   ksql-datagen:
+    container_name: ksql-datagen
     image: confluentinc/ksqldb-examples:7.8.0
     hostname: ksql-datagen
-    container_name: ksql-datagen
     depends_on:
       - ksqldb-server
       - broker
@@ -176,14 +173,14 @@ services:
       STREAMS_SCHEMA_REGISTRY_PORT: 8081
 
   rest-proxy:
+    container_name: rest-proxy
     image: confluentinc/cp-kafka-rest:7.8.0
     depends_on:
       - broker
       - schema-registry
     ports:
-      - 8082:8082
+      - '8082:8082'
     hostname: rest-proxy
-    container_name: rest-proxy
     environment:
       KAFKA_REST_HOST_NAME: rest-proxy
       KAFKA_REST_BOOTSTRAP_SERVERS: 'broker:29092'
@@ -191,20 +188,20 @@ services:
       KAFKA_REST_SCHEMA_REGISTRY_URL: 'http://schema-registry:8081'
 
   flink-sql-client:
+    container_name: flink-sql-client
     image: cnfldemos/flink-sql-client-kafka:1.19.1-scala_2.12-java17
     depends_on:
       - flink-jobmanager
     hostname: flink-sql-client
-    container_name: flink-sql-client
     environment:
       FLINK_JOBMANAGER_HOST: flink-jobmanager
 
   flink-jobmanager:
+    container_name: flink-jobmanager
     image: cnfldemos/flink-kafka:1.19.1-scala_2.12-java17
     hostname: flink-jobmanager
-    container_name: flink-jobmanager
     ports:
-      - 9081:9081
+      - '9081:9081'
     command: jobmanager
     environment:
       - |
@@ -213,13 +210,12 @@ services:
         rest.bind-port: 9081
 
   flink-taskmanager:
+    container_name: flink-taskmanager
     image: cnfldemos/flink-kafka:1.19.1-scala_2.12-java17
     hostname: flink-taskmanager
-    container_name: flink-taskmanager
     depends_on:
       - flink-jobmanager
     command: taskmanager
-    scale: 1
     environment:
       - |
         FLINK_PROPERTIES=
@@ -227,51 +223,31 @@ services:
         taskmanager.numberOfTaskSlots: 10
 
   localstack:
+    image: localstack/localstack-pro
     container_name: localstack
-    image: localstack/localstack
-    ports:
-      - "4566:4566"            # LocalStack Gateway
-      - "4510-4559:4510-4559"  # external services port range
     environment:
-      # LocalStack configuration: https://docs.localstack.cloud/references/configuration/
-      - DEBUG=${DEBUG:-0}
-    volumes:
-      - "${LOCALSTACK_VOLUME_DIR:-./volume}:/var/lib/localstack"
-      - "/var/run/docker.sock:/var/run/docker.sock"
-
-  kcat:
-    container_name: kcat
-    image: confluentinc/cp-kcat:latest
+      - LAMBDA_EXECUTOR=docker
+      - LAMBDA_REMOTE_DOCKER=0
+      - EAGER_SERVICE_LOADING=1
+      - LS_LOG=trace
+      - LOCALSTACK_API_KEY=${LOCALSTACK_API_KEY}
+      - SERVICES=cloudformation,s3,lambda,kafka,iam,secretsmanager,logs
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - KAFKA_BOOTSTRAP_SERVERS=broker:29092
+      - HOSTNAME_EXTERNAL=localstack
+      - DEBUG=1
+    ports:
+      - "4566:4566"
+      - "4510:4510"
     depends_on:
-      - control-center
-    entrypoint: /bin/sh
-    command: -c "sleep 10 && kcat -b kafka:9092 -L"
+      - broker
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "localstack-data:/var/lib/localstack"
 
-#  awscli:
-#    container_name: aws-cli
-#    image: amazon/aws-cli:latest
-#    stdin_open: true # equivalent of -i
-#    tty: true        # equivalent of -t
-#    entrypoint: tail -f /dev/null
-#    depends_on:
-#      - control-center
-#    deploy:
-#      mode: replicated
-#      replicas: 1
-#      resources:
-#        limits:
-#          cpus: "2"
-#          memory: 2048M
-#      restart_policy:
-#        condition: on-failure
-#        delay: 5s
-#        max_attempts: 3
-#        window: 120s
-#    environment:
-#      - HTTP_PROXY=http://ipadresses:port
-#      - HTTPS_PROXY=https://ipadresses:port
-#    ports:
-#      - "8080:8080"
+volumes:
+  localstack-data:
+
 networks:
   default:
     name: bip-network
