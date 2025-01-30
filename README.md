@@ -15,7 +15,10 @@ This project is a **prototype** designed to demonstrate the integration of a **s
 
 ## Prerequisites
 Ensure you have the following installed before proceeding:
-- **LocalStack Pro Key** (I recommend using a temp mail service to achieve this)
+- **LocalStack Pro Key** assigned to the environment variable **LOCALSTACK_API_KEY** (I recommend using a temp mail service to achieve this)
+  ```sh
+  export LOCALSTACK_API_KEY="ls-XEGUyuRo-6085-vOKU-NAwE-qEPeGAKO1d31"
+   ```
 - **Docker** & **Docker Compose**
 - **Python3** (via `brew` or manually installed)
 
