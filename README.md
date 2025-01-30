@@ -30,7 +30,7 @@ Ensure you have the following installed before proceeding:
    ```sh
    chmod 755 setup.sh
    chmod 755 start-all.sh
-   chmod 755 staop-all.sh
+   chmod 755 stop-all.sh
    ```
 3. Run the **setup script** to install dependencies:
    ```sh
