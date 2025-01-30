@@ -25,7 +25,7 @@ Ensure you have the following installed before proceeding:
    git clone https://github.com/yourusername/confluent-kafka-lambda-demo.git
    cd confluent-kafka-lambda-demo
    ```
-2. Get permission to setup scripts (if you system requires it):
+2. Give permission to setup scripts (if you system requires it):
    ```sh
    chmod 755 setup.sh
    chmod 755 start-all.sh
