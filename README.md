@@ -15,6 +15,8 @@ This project is a **prototype** designed to demonstrate the integration of a **s
 
 ## Prerequisites
 Ensure you have the following installed before proceeding:
+- **chmod 755** on **start-all.sh**, **stop-all.sh**, and **setup.sh** (This may or may not be need depending on your system)
+- **LocalStack Pro Key** (I recommend using a temp mail service to achieve this)
 - **Docker** & **Docker Compose**
 - **Python3** (via `brew` or manually installed)
 
