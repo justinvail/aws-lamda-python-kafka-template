@@ -1,6 +1,11 @@
 #!/bin/bash
 cd -- "${BASH_SOURCE%/*}/" || exit
 ./stop-all.sh
+
+# Cleanup
+echo "Cleaning up temporary files..."
+rm -f "./lambda_function/lambda_function.zip"
+
 # Check if LOCALSTACK_API_KEY is set
 if [ -z "$LOCALSTACK_API_KEY" ]; then
   echo "Error: LOCALSTACK_API_KEY environment variable is not set.  Please obtain a localstack pro key and set the environment variable."
@@ -30,7 +35,6 @@ echo ""
 echo "Creating python lambda function and deploying to localstack within docker"
 
 ## Variables
-LAMBDA_DIR="./lambda_function"
 LAMBDA_NAME="lambda_function"
 LAMBDA_ZIP="$LAMBDA_NAME.zip"
 KAFKA_TOPIC="user-id-change-topic"
@@ -38,8 +42,8 @@ AWS_ACCOUNT="000000000000"
 
 # Package the Lambda function
 echo "Packaging Lambda function..."
-cd $LAMBDA_DIR || exit
-zip -r "../$LAMBDA_ZIP" .
+cd ./$LAMBDA_NAME/ || exit
+zip -r9 ./$LAMBDA_ZIP .
 cd -- "${BASH_SOURCE%/*}/" || exit
 # Create the Lambda function
 echo "Creating Lambda function..."
@@ -111,7 +115,7 @@ awslocal lambda create-function \
     --handler lambda_function.handler \
     --runtime python3.8 \
     --role arn:aws:iam::"$AWS_ACCOUNT":role/lambda-role \
-    --zip-file fileb://lambda_function.zip \
+    --zip-file fileb://lambda_function/lambda_function.zip \
     >/dev/null
 
 # Get the function name and store it in a variable
@@ -128,9 +132,9 @@ awslocal lambda create-event-source-mapping \
     --self-managed-event-source '{"Endpoints":{"KAFKA_BOOTSTRAP_SERVERS":["broker:29092"]}}' \
     >/dev/null
 
-echo "Running producer.py to simulate events"
+echo "Running producer.py 5 times to simulate 50,000 events"
 python3 producer.py
-
-# Cleanup
-echo "Cleaning up temporary files..."
-rm -f "lambda_function.zip"
+python3 producer.py
+python3 producer.py
+python3 producer.py
+python3 producer.py

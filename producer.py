@@ -13,20 +13,13 @@ topic_name = "user-id-change-topic"
 
 # Kafka configuration
 kafka_config = {
-  'bootstrap.servers': 'localhost:9092',
+    'bootstrap.servers': 'localhost:9092',
 }
 
 # Schema Registry configuration
 schema_registry_config = {
-  'url': 'http://localhost:8081'
+    'url': 'http://localhost:8081'
 }
-
-
-def delivery_report(err, msg):
-    if err is not None:
-        print("Message delivery failed: {}".format(err))
-    else:
-        print("Message delivered to {} [{}]".format(msg.topic(), msg.value()))
 
 
 def generate_user_name(first_name, last_name):
@@ -50,9 +43,9 @@ def generate_sample_data():
     new_id = generate_random_id()
 
     return {
-      "user_name": user_name,
-      "old_id": old_id,
-      "new_id": new_id
+        "user_name": user_name,
+        "old_id": old_id,
+        "new_id": new_id
     }
 
 
@@ -79,7 +72,6 @@ try:
         producer.produce(
             topic=topic_name,
             value=serialized_data,
-            on_delivery=delivery_report
         )
     producer.flush()
 except Exception as e:

@@ -79,6 +79,11 @@ To stop all running services:
 - **Implement access control lists (ACLs)** for fine-grained permission management in Kafka.
 - **Update lambda_function.py to use Confluent Schema Registry on initialization** to reduce package size, increase resiliency, and increase modifiability.
 - **Update lambda_function.py to do something interesting with its message data** like call an api found here: **https://github.com/toddmotto/public-apis/**
+- **Remove unnecessary confluent containers** to reduce start up time.
+- **Introduce python virtual environments** to ensure consistent dependency resolution.
+- **Add message keys to Avro messages** to more closely mimic prod environments.
+- **Find lighter weight Avro library** to reduce package size. 
+
 
 ## Extras
 - **Consumer.py** shows how to consumer kafka messages in python in a more traditional way.  It is not necessary for the lambda to work.  Instead, it provides another means of testing. 

@@ -10,4 +10,5 @@ echo ""
 chmod 500 stop-all.sh
 echo ""
 echo "Installing python requirements for lambda package in virtual environment."
-pip3 install --target ./lambda_function fastavro
+cd lambda_function || exit
+pip3 install --target . fastavro
