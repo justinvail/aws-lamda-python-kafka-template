@@ -26,11 +26,17 @@ Ensure you have the following installed before proceeding:
    git clone https://github.com/yourusername/confluent-kafka-lambda-demo.git
    cd confluent-kafka-lambda-demo
    ```
-2. Run the **setup script** to install dependencies:
+2. Get permission to setup scripts (if you system requires it):
+   ```sh
+   chmod 755 setup.sh
+   chmod 755 start-all.sh
+   chmod 755 staop-all.sh
+   ```
+3. Run the **setup script** to install dependencies:
    ```sh
    ./setup.sh
    ```
-3. Start all services and deploy the Lambda:
+4. Start all services and deploy the Lambda:
    ```sh
    ./start-all.sh
    ```
@@ -42,6 +48,10 @@ Ensure you have the following installed before proceeding:
     - Create an **event source mapping**.
     - Run the **Kafka producer (`producer.py`)**.
     - Clean up any temporary files.
+5. Stop all the services and clean up docker:
+   ```sh
+   ./stop-all.sh
+   ```
 
 ## How It Works
 1. **Kafka Setup:** A self-managed Kafka cluster is started using Docker.
