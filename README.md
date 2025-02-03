@@ -19,7 +19,8 @@ Ensure you have the following installed before proceeding:
   ```sh
   export LOCALSTACK_API_KEY="ls-XEGUyuRo-6085-vOKU-NAwE-qEPeGAKO1d31"
    ```
-- **Docker** & **Docker Compose**
+- **Docker**
+- **Brew**
 - **Python3** (via `brew` or manually installed)
 
 ## Setup Instructions
