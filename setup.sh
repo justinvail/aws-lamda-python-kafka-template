@@ -1,9 +1,17 @@
-#!/bin/bash
+echo "Installing pipx and adding to system path."
+echo ""
+python3 -m pip install --user pipx
+python3 -m pipx ensurepath
+source ~/.zshrc
 echo "Installing system level requirements."
 echo ""
 pip3 install confluent-kafka
-pip3 install awscli-local
-pip3 install aws-sam-cli
+pip3 install httpx
+pip3 install attrs
+pip3 install cachetools
+pip3 install fastavro
+pipx install awscli-local
+pipx install aws-sam-cli
 brew install jq
 echo "Changing stop-all script permissions."
 echo ""
