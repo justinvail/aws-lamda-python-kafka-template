@@ -1,19 +1,12 @@
-echo "Installing pipx and adding to system path."
+echo "Installing necessary CLIs adding them to system path via brew."
 echo ""
 brew install pipx
-source ~/.zshrc
-pipx --version
+brew install awscli-local
+brew install aws-sam-cli
 echo "Installing system level requirements."
 echo ""
 pip3 install confluent-kafka
 pip3 install httpx
 pip3 install attrs
 pip3 install cachetools
-pip3 install fastavro
-pipx install awscli-local
-pipx install aws-sam-cli
-brew install jq
-echo ""
-echo "Installing python requirements for lambda package in virtual environment."
-cd lambda_function || exit
-pip3 install --target . fastavro
+pip3 install avro

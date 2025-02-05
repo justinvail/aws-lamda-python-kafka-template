@@ -1,140 +1,96 @@
 #!/bin/bash
-cd -- "${BASH_SOURCE%/*}/" || exit
-./stop-all.sh
+set -e
 
-# Cleanup
-echo "Cleaning up temporary files..."
-rm -f "./lambda_function/lambda_function.zip"
-
-# Check if LOCALSTACK_API_KEY is set
-if [ -z "$LOCALSTACK_API_KEY" ]; then
-  echo "Error: LOCALSTACK_API_KEY environment variable is not set.  Please obtain a localstack pro key and set the environment variable."
-  exit 1
-else
-  echo "LOCALSTACK_API_KEY is set to $LOCALSTACK_API_KEY"
+# Check if Docker daemon is running
+if ! docker info >/dev/null 2>&1; then
+    echo "start-all.sh --> Error: Docker daemon is not running. Please start Docker and try again."
+    exit 1
 fi
+
+# Kill other instances of this script
+SCRIPT_NAME=$(basename "$0")
+for pid in $(pgrep -f "$SCRIPT_NAME"); do
+    if [ "$pid" != $$ ]; then
+        echo "start-all.sh --> Killing other instance of $SCRIPT_NAME (PID: $pid)..."
+        kill -9 "$pid" 2>/dev/null || true
+    fi
+done
+
+# Change directory to the script's location
+cd -- "${BASH_SOURCE%/*}/" || exit
+
+# Kill any existing processes on port 3001
+echo "start-all.sh --> Cleaning up existing conflicting processes..."
+existing_pid=$(lsof -ti:3001 || true)
+if [ -n "$existing_pid" ]; then
+    echo "start-all.sh --> Killing existing process on port 3001..."
+    kill -9 "$existing_pid" || true
+fi
+
+# Stop any running containers
+echo "start-all.sh --> Stopping any running containers..."
+./stop-all.sh || true
+
+# Start all services
+echo "start-all.sh --> Starting Kafka ecosystem..."
 docker compose up -d
-export AWS_ACCESS_KEY_ID=test
-export AWS_SECRET_ACCESS_KEY=test
-export AWS_DEFAULT_REGION=us-east-1
-export AWS_ENDPOINT_URL=http://localhost:4566
+
+# Wait for the Kafka ecosystem to start
 c3_url="http://localhost:9021"
-explanation=" seconds have past."
-echo "Waiting for Kafka ecosystem to start."
+explanation=" seconds have passed."
+echo "start-all.sh --> Waiting for Kafka ecosystem to start."
 duration_past=0
-while ! curl --head --silent --fail "$c3_url" >/dev/null; do
-  echo -ne " -> $duration_past$explanation\r"
+while ! curl --head --silent --fail "$c3_url" >/dev/null 2>&1; do
+  echo -ne "start-all.sh --> $duration_past$explanation\r"
   ((duration_past+=1))
   sleep 1
+  if [ "$duration_past" -gt 60 ]; then
+    echo "start-all.sh --> Timeout waiting for Kafka to start"
+    break
+  fi
 done
 echo ""
-echo "Kafka ecosystem started!"
-docker container ls
-open http://localhost:9021/clusters/LocalKafkaCluster/overview
-echo ""
-echo "Creating python lambda function and deploying to localstack within docker"
+echo "start-all.sh --> Kafka ecosystem started!"
 
-## Variables
-LAMBDA_NAME="lambda_function"
-LAMBDA_ZIP="$LAMBDA_NAME.zip"
-KAFKA_TOPIC="user-id-change-topic"
-AWS_ACCOUNT="000000000000"
+# Open Control Center UI
+open http://localhost:9021/clusters/LocalKafkaCluster/overview || true
 
-# Package the Lambda function
-echo "Packaging Lambda function..."
-cd ./$LAMBDA_NAME/ || exit
-zip -r9 ./$LAMBDA_ZIP .
-cd -- "${BASH_SOURCE%/*}/" || exit
-# Create the Lambda function
-echo "Creating Lambda function..."
+echo "start-all.sh --> Building Lambda function using SAM..."
+sam build --use-container
 
-awslocal iam create-role --role-name lambda-role --assume-role-policy-document \
-'{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": {
-        "Service": "lambda.amazonaws.com"
-      },
-      "Action": "sts:AssumeRole"
-    }
-  ]
-}' \
->/dev/null
+echo "start-all.sh --> Starting Lambda with debug output..."
+sam local start-lambda \
+  --docker-network bip-network \
+  --warm-containers EAGER \
+  --debug \
+  --log-file lambda.log &
 
-awslocal iam create-policy --policy-name LambdaKafkaPolicy --policy-document \
-'{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "lambda:InvokeFunction",
-        "lambda:CreateEventSourceMapping"
-      ],
-      "Resource": "arn:aws:lambda:us-east-1:'$AWS_ACCOUNT':function:KafkaConsumerFunction"
-    },
-    {
-      "Effect": "Allow",
-      "Action": [
-        "secretsmanager:GetSecretValue"
-      ],
-      "Resource": "arn:aws:secretsmanager:us-east-1:'$AWS_ACCOUNT':secret:localstack-FtaAYP"
-    },
-    {
-      "Effect": "Allow",
-      "Action": [
-        "kafka:DescribeCluster",
-        "kafka:Consume"
-      ],
-      "Resource": "arn:aws:kafka:us-east-1:'$AWS_ACCOUNT':cluster/your-cluster-name/*"
-    }
-  ]
-}'
+# Store the SAM process ID
+SAM_PID=$!
 
-awslocal iam attach-role-policy --role-name lambda-role --policy-arn arn:aws:iam::"$AWS_ACCOUNT":policy/LambdaKafkaPolicy
+# Give services time to initialize
+echo "start-all.sh --> Waiting for Lambda to initialize..."
+sleep 10
 
-awslocal iam list-attached-role-policies --role-name lambda-role
+echo "start-all.sh --> Starting Kafka to Lambda bridge..."
+python3 kafka_lambda_bridge.py &
+BRIDGE_PID=$!
 
-ARN=$(awslocal secretsmanager create-secret --name localstack | jq -r '.ARN')
-echo "Scraping output of secretsmanager to get token"
-echo "$ARN"
+echo "start-all.sh --> Running producer to generate test events..."
+python3 producer.py &
+PRODUCER_PID=$!
 
-#https://docs.localstack.cloud/user-guide/integrations/kafka/
-#https://aws.amazon.com/blogs/compute/using-self-hosted-apache-kafka-as-an-event-source-for-aws-lambda/
-#Seems like the only way to setup the event source mapping is through aws local cli.  I can't get sam + cloudformation template to work
+# Show logs and keep script running
+echo "start-all.sh --> Tailing Lambda logs..."
+tail -f lambda.log
 
-#This would be how you use a cloudformation template.yml with sam
-#sam validate --region us-east-1
-#sam build --use-container
-#sam deploy --region us-east-1 --stack-name lambda_function --resolve-s3 --no-confirm-changeset
+# Trap Ctrl+C to clean up processes
+cleanup() {
+    echo "start-all.sh --> Cleaning up processes..."
+    kill $SAM_PID $BRIDGE_PID $PRODUCER_PID 2>/dev/null || true
+    exit
+}
+trap cleanup INT TERM
 
-awslocal lambda create-function \
-    --function-name KafkaConsumerFunction \
-    --handler lambda_function.handler \
-    --runtime python3.8 \
-    --role arn:aws:iam::"$AWS_ACCOUNT":role/lambda-role \
-    --zip-file fileb://lambda_function/lambda_function.zip \
-    >/dev/null
-
-# Get the function name and store it in a variable
-FUNCTION_NAME=$(awslocal lambda list-functions | jq -r '.Functions[0].FunctionName')
-echo "Function Name: $FUNCTION_NAME"
-
-awslocal logs create-log-group --log-group-name "/aws/lambda/$FUNCTION_NAME"
-
-# Run the create-event-source-mapping command using the function name
-awslocal lambda create-event-source-mapping \
-    --topics "$KAFKA_TOPIC" \
-    --source-access-configuration Type=PLAINTEXT,URI="$ARN" \
-    --function-name arn:aws:lambda:us-east-1:"$AWS_ACCOUNT":function:"$FUNCTION_NAME" \
-    --self-managed-event-source '{"Endpoints":{"KAFKA_BOOTSTRAP_SERVERS":["broker:29092"]}}' \
-    >/dev/null
-
-echo "Running producer.py 5 times to simulate 50,000 events"
-python3 producer.py
-python3 producer.py
-python3 producer.py
-python3 producer.py
-python3 producer.py
+# Wait for any process to exit
+wait -n

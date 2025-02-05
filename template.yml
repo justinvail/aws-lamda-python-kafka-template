@@ -1,0 +1,26 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Resources:
+  KafkaConsumerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: KafkaConsumerFunction
+      Handler: lambda_function.handler
+      Runtime: python3.8
+      CodeUri: lambda_function/
+      Environment:
+        Variables:
+          KAFKA_BOOTSTRAP_SERVERS: "broker:29092"
+          KAFKA_TOPIC: "user-id-change-topic"
+      Events:
+        KafkaEvent:
+          Type: SelfManagedKafka
+          Properties:
+            StartingPosition: TRIM_HORIZON
+            BatchSize: 10
+            Topics:
+              - user-id-change-topic
+            KafkaBootstrapServers:
+              - "broker:29092"
+            ConsumerGroupId: "sam-local-consumer-group"

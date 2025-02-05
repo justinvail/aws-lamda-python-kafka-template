@@ -222,32 +222,6 @@ services:
         jobmanager.rpc.address: flink-jobmanager
         taskmanager.numberOfTaskSlots: 10
 
-  localstack:
-    image: localstack/localstack-pro
-    container_name: localstack
-    environment:
-      - LAMBDA_EXECUTOR=docker
-      - LAMBDA_REMOTE_DOCKER=0
-      - EAGER_SERVICE_LOADING=1
-      - LS_LOG=trace
-      - LOCALSTACK_API_KEY=${LOCALSTACK_API_KEY}
-      - SERVICES=cloudformation,s3,lambda,kafka,iam,secretsmanager,logs
-      - DOCKER_HOST=unix:///var/run/docker.sock
-      - KAFKA_BOOTSTRAP_SERVERS=broker:29092
-      - HOSTNAME_EXTERNAL=localstack
-      - DEBUG=1
-    ports:
-      - "4566:4566"
-      - "4510:4510"
-    depends_on:
-      - broker
-    volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock"
-      - "localstack-data:/var/lib/localstack"
-
-volumes:
-  localstack-data:
-
 networks:
   default:
     name: bip-network

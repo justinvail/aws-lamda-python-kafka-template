@@ -1,29 +1,16 @@
 import random
 from confluent_kafka import Producer
-from confluent_kafka.schema_registry import SchemaRegistryClient
-from confluent_kafka.schema_registry.avro import AvroSerializer
-from confluent_kafka.serialization import SerializationContext, MessageField
+import avro.schema
+import json
 
-# Load the Avro schema from an external file
+# Load the Avro schema
 with open("lambda_function/user.avsc", "r") as schema_file:
     avro_schema_str = schema_file.read()
-
-# Kafka topic name
-topic_name = "user-id-change-topic"
-
-# Kafka configuration
-kafka_config = {
-    'bootstrap.servers': 'localhost:9092',
-}
-
-# Schema Registry configuration
-schema_registry_config = {
-    'url': 'http://localhost:8081'
-}
+    parsed_schema = avro.schema.parse(avro_schema_str)
 
 
 def generate_user_name(first_name, last_name):
-    return f"{first_name}_{last_name}".lower()
+    return f"{first_name.lower()}_{last_name.lower()}"
 
 
 def generate_random_id():
@@ -31,10 +18,8 @@ def generate_random_id():
 
 
 def generate_sample_data():
-    first_names = ["John", "Jane", "Alice", "Bob", "Michael", "Sarah", "David", "Emily", "Chris",
-                   "Emma"]
-    last_names = ["Doe", "Smith", "Johnson", "Brown", "Williams", "Taylor", "Anderson", "Thomas",
-                  "Jackson", "White"]
+    first_names = ["John", "Jane", "Alice", "Bob", "Michael", "Sarah", "David", "Emily"]
+    last_names = ["Doe", "Smith", "Johnson", "Brown", "Williams", "Taylor"]
 
     first_name = random.choice(first_names)
     last_name = random.choice(last_names)
@@ -49,30 +34,56 @@ def generate_sample_data():
     }
 
 
-# Initialize the Schema Registry client
-schema_registry_client = SchemaRegistryClient(schema_registry_config)
+def delivery_report(err, msg):
+    if err is not None:
+        print(f'producer.py --> Message delivery failed: {err}')
+    else:
+        print(f'producer.py --> Message delivered to {msg.topic()} [{msg.partition()}] at offset {msg.offset()}')
 
-# Initialize the Avro serializer
-avro_serializer = AvroSerializer(
-    schema_registry_client=schema_registry_client,
-    schema_str=avro_schema_str,
-    to_dict=lambda record, ctx: record  # Use a simple pass-through serializer for this example
-)
 
-# Initialize the Kafka producer
-producer = Producer(kafka_config)
+def main():
+    # Simple Avro serializer (without schema registry)
+    def serialize_avro(obj, ctx):
+        import io
+        from avro.io import DatumWriter, BinaryEncoder
 
-# Generate and produce 100 messages
-try:
-    for _ in range(10000):
-        sample_data = generate_sample_data()
-        serialized_data = avro_serializer(sample_data,
-                                          SerializationContext(topic_name, MessageField.VALUE))
+        writer = DatumWriter(parsed_schema)
+        bytes_writer = io.BytesIO()
+        encoder = BinaryEncoder(bytes_writer)
+        writer.write(obj, encoder)
+        return bytes_writer.getvalue()
 
-        producer.produce(
-            topic=topic_name,
-            value=serialized_data,
-        )
-    producer.flush()
-except Exception as e:
-    print("Error while producing messages: {}".format(e))
+    # Kafka producer configuration
+    producer_config = {
+        'bootstrap.servers': 'localhost:9092'
+    }
+
+    # Create producer
+    producer = Producer(producer_config)
+
+    # Produce some messages
+    try:
+        for _ in range(10000):
+            data = generate_sample_data()
+            # Serialize the data using Avro
+            serialized_data = serialize_avro(data, None)
+
+            # Print what we're sending (for debugging)
+            print(f"producer.py --> Sending message: {data}")
+
+            producer.produce(
+                topic='user-id-change-topic',
+                value=serialized_data,
+                callback=delivery_report
+            )
+            producer.poll(0)  # Trigger delivery reports
+
+        # Wait for any outstanding messages to be delivered
+        producer.flush()
+
+    except Exception as e:
+        print(f"producer.py --> Error producing message: {e}")
+
+
+if __name__ == '__main__':
+    main()
