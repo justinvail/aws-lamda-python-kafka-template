@@ -1,10 +1,38 @@
 version: '3.9'
-services:
 
+# Define networks first
+networks:
+  bip-network:
+    name: bip-network
+    driver: bridge
+
+services:
+  mock-aws:
+    container_name: mock-aws
+    image: mock-aws
+    build: .
+    volumes:
+      - .:/app:exec
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - bip-network
+    privileged: true
+    depends_on:
+      - broker
+      - schema-registry
+      - connect
+      - control-center
+    restart: unless-stopped
+    environment:
+      - AWS_SAM_CLI_TELEMETRY=0
+
+  # Your existing services
   broker:
     container_name: broker
     image: confluentinc/cp-server:7.8.0
     hostname: broker
+    networks:
+      - bip-network
     ports:
       - "9092:9092"
       - "9101:9101"
@@ -34,28 +62,12 @@ services:
       CONFLUENT_SUPPORT_CUSTOMER_ID: 'anonymous'
       CLUSTER_ID: 'LocalKafkaCluster'
 
-  init-broker:
-    container_name: init-broker
-    image: confluentinc/cp-server:7.8.0
-    depends_on:
-      - broker
-    entrypoint: [ '/bin/sh', '-c' ]
-    command: |
-      "
-      # blocks until kafka is reachable
-      kafka-topics --bootstrap-server broker:29092 --list
-
-      echo -e 'Creating kafka topics'
-      kafka-topics --bootstrap-server broker:29092 --create --if-not-exists --topic user-id-change-topic --replication-factor 1 --partitions 1
-
-      echo -e 'Successfully created the following topics:'
-      kafka-topics --bootstrap-server broker:29092 --list
-      "
-
   schema-registry:
     container_name: schema-registry
     image: confluentinc/cp-schema-registry:7.8.0
     hostname: schema-registry
+    networks:
+      - bip-network
     depends_on:
       - broker
     ports:
@@ -69,6 +81,8 @@ services:
     container_name: connect
     image: cnfldemos/cp-server-connect-datagen:0.6.4-7.6.0
     hostname: connect
+    networks:
+      - bip-network
     depends_on:
       - broker
       - schema-registry
@@ -88,140 +102,25 @@ services:
       CONNECT_KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
       CONNECT_VALUE_CONVERTER: io.confluent.connect.avro.AvroConverter
       CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry:8081
-      CLASSPATH: /usr/share/java/monitoring-interceptors/monitoring-interceptors-7.8.0.jar
-      CONNECT_PRODUCER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringProducerInterceptor"
-      CONNECT_CONSUMER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringConsumerInterceptor"
-      CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components"
 
   control-center:
     container_name: control-center
     image: confluentinc/cp-enterprise-control-center:7.8.0
     hostname: control-center
+    networks:
+      - bip-network
     depends_on:
       - broker
       - schema-registry
       - connect
-      - ksqldb-server
     ports:
       - "9021:9021"
     environment:
       CONTROL_CENTER_BOOTSTRAP_SERVERS: 'broker:29092'
       CONTROL_CENTER_CONNECT_CONNECT-DEFAULT_CLUSTER: 'connect:8083'
-      CONTROL_CENTER_CONNECT_HEALTHCHECK_ENDPOINT: '/connectors'
-      CONTROL_CENTER_KSQL_KSQLDB1_URL: "http://ksqldb-server:8088"
-      CONTROL_CENTER_KSQL_KSQLDB1_ADVERTISED_URL: "http://localhost:8088"
       CONTROL_CENTER_SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
       CONTROL_CENTER_REPLICATION_FACTOR: 1
       CONTROL_CENTER_INTERNAL_TOPICS_PARTITIONS: 1
       CONTROL_CENTER_MONITORING_INTERCEPTOR_TOPIC_PARTITIONS: 1
       CONFLUENT_METRICS_TOPIC_REPLICATION: 1
       PORT: 9021
-
-  ksqldb-server:
-    container_name: ksqldb-server
-    image: confluentinc/cp-ksqldb-server:7.8.0
-    hostname: ksqldb-server
-    depends_on:
-      - broker
-      - connect
-    ports:
-      - "8088:8088"
-    environment:
-      KSQL_CONFIG_DIR: "/etc/ksql"
-      KSQL_BOOTSTRAP_SERVERS: "broker:29092"
-      KSQL_HOST_NAME: ksqldb-server
-      KSQL_LISTENERS: "http://0.0.0.0:8088"
-      KSQL_CACHE_MAX_BYTES_BUFFERING: 0
-      KSQL_KSQL_SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
-      KSQL_PRODUCER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringProducerInterceptor"
-      KSQL_CONSUMER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringConsumerInterceptor"
-      KSQL_KSQL_CONNECT_URL: "http://connect:8083"
-      KSQL_KSQL_LOGGING_PROCESSING_TOPIC_REPLICATION_FACTOR: 1
-      KSQL_KSQL_LOGGING_PROCESSING_TOPIC_AUTO_CREATE: 'true'
-      KSQL_KSQL_LOGGING_PROCESSING_STREAM_AUTO_CREATE: 'true'
-
-  ksqldb-cli:
-    container_name: ksqldb-cli
-    image: confluentinc/cp-ksqldb-cli:7.8.0
-    depends_on:
-      - broker
-      - connect
-      - ksqldb-server
-    entrypoint: /bin/sh
-    tty: true
-
-  ksql-datagen:
-    container_name: ksql-datagen
-    image: confluentinc/ksqldb-examples:7.8.0
-    hostname: ksql-datagen
-    depends_on:
-      - ksqldb-server
-      - broker
-      - schema-registry
-      - connect
-    command: "bash -c 'echo Waiting for Kafka to be ready... && \
-                       cub kafka-ready -b broker:29092 1 40 && \
-                       echo Waiting for Confluent Schema Registry to be ready... && \
-                       cub sr-ready schema-registry 8081 40 && \
-                       echo Waiting a few seconds for topic creation to finish... && \
-                       sleep 11 && \
-                       tail -f /dev/null'"
-    environment:
-      KSQL_CONFIG_DIR: "/etc/ksql"
-      STREAMS_BOOTSTRAP_SERVERS: broker:29092
-      STREAMS_SCHEMA_REGISTRY_HOST: schema-registry
-      STREAMS_SCHEMA_REGISTRY_PORT: 8081
-
-  rest-proxy:
-    container_name: rest-proxy
-    image: confluentinc/cp-kafka-rest:7.8.0
-    depends_on:
-      - broker
-      - schema-registry
-    ports:
-      - '8082:8082'
-    hostname: rest-proxy
-    environment:
-      KAFKA_REST_HOST_NAME: rest-proxy
-      KAFKA_REST_BOOTSTRAP_SERVERS: 'broker:29092'
-      KAFKA_REST_LISTENERS: "http://0.0.0.0:8082"
-      KAFKA_REST_SCHEMA_REGISTRY_URL: 'http://schema-registry:8081'
-
-  flink-sql-client:
-    container_name: flink-sql-client
-    image: cnfldemos/flink-sql-client-kafka:1.19.1-scala_2.12-java17
-    depends_on:
-      - flink-jobmanager
-    hostname: flink-sql-client
-    environment:
-      FLINK_JOBMANAGER_HOST: flink-jobmanager
-
-  flink-jobmanager:
-    container_name: flink-jobmanager
-    image: cnfldemos/flink-kafka:1.19.1-scala_2.12-java17
-    hostname: flink-jobmanager
-    ports:
-      - '9081:9081'
-    command: jobmanager
-    environment:
-      - |
-        FLINK_PROPERTIES=
-        jobmanager.rpc.address: flink-jobmanager
-        rest.bind-port: 9081
-
-  flink-taskmanager:
-    container_name: flink-taskmanager
-    image: cnfldemos/flink-kafka:1.19.1-scala_2.12-java17
-    hostname: flink-taskmanager
-    depends_on:
-      - flink-jobmanager
-    command: taskmanager
-    environment:
-      - |
-        FLINK_PROPERTIES=
-        jobmanager.rpc.address: flink-jobmanager
-        taskmanager.numberOfTaskSlots: 10
-
-networks:
-  default:
-    name: bip-network

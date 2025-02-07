@@ -4,7 +4,7 @@ import avro.schema
 import json
 
 # Load the Avro schema
-with open("lambda_function/user.avsc", "r") as schema_file:
+with open("../schemas/user.avsc", "r") as schema_file:
     avro_schema_str = schema_file.read()
     parsed_schema = avro.schema.parse(avro_schema_str)
 

@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(__name__)
 
 # Load and parse the schema
-with open("lambda_function/user.avsc", "r") as schema_file:
+with open("../schemas/user.avsc", "r") as schema_file:
     schema_json = schema_file.read()
     parsed_schema = parse(schema_json)
 
