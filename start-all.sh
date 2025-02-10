@@ -1,4 +1,6 @@
 #!/bin/bash
+
+#stops the execution of a script if a command or pipeline has an error
 set -e
 
 # Check if Docker daemon is running
@@ -18,6 +20,10 @@ done
 
 # Change directory to the script's location
 cd -- "${BASH_SOURCE%/*}/" || exit
+
+echo "Activating virtual environment. (Modifies path to search virtual environment first)"
+source ./.venv/bin/activate || exit
+echo ""
 
 # Kill any existing processes on port 3001
 echo "start-all.sh --> Cleaning up existing conflicting processes..."
