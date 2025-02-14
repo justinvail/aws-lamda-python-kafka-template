@@ -20,7 +20,7 @@ with open("../schemas/user.avsc", "r") as schema_file:
 
 def create_kafka_consumer():
     consumer_conf = {
-        'bootstrap.servers': 'localhost:9092',
+        'bootstrap.servers': 'broker:29092',
         'group.id': 'sam-local-consumer-group',
         'auto.offset.reset': 'earliest'
     }

@@ -55,7 +55,7 @@ def main():
 
     # Kafka producer configuration
     producer_config = {
-        'bootstrap.servers': 'localhost:9092'
+        'bootstrap.servers': 'broker:29092'
     }
 
     # Create producer

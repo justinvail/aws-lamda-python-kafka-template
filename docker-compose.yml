@@ -1,6 +1,5 @@
 version: '3.9'
 
-# Define networks first
 networks:
   bip-network:
     name: bip-network
@@ -12,11 +11,13 @@ services:
     image: mock-aws
     build: .
     volumes:
-      - .:/app:exec
+      - .:/app:rw
       - /var/run/docker.sock:/var/run/docker.sock
+      - sam-cache:/root/.aws-sam/cache
     networks:
       - bip-network
     privileged: true
+    platform: linux/amd64
     depends_on:
       - broker
       - schema-registry
@@ -25,8 +26,14 @@ services:
     restart: unless-stopped
     environment:
       - AWS_SAM_CLI_TELEMETRY=0
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - AWS_REGION=us-east-1
+      - AWS_DEFAULT_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=dummy
+      - AWS_SECRET_ACCESS_KEY=dummy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
-  # Your existing services
   broker:
     container_name: broker
     image: confluentinc/cp-server:7.8.0
@@ -124,3 +131,6 @@ services:
       CONTROL_CENTER_MONITORING_INTERCEPTOR_TOPIC_PARTITIONS: 1
       CONFLUENT_METRICS_TOPIC_REPLICATION: 1
       PORT: 9021
+
+volumes:
+  sam-cache:

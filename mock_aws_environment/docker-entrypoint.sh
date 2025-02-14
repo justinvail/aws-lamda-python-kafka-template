@@ -24,22 +24,24 @@ kafka-topics --create \
 
 echo "Starting mock AWS environment..."
 
-echo "Building Lambda package..."
-cd /app/mock_aws_environment && sam build \
-    --use-container \
-    --template template.yml \
-    --build-dir /app/.aws-sam/build \
-    --docker-network bip-network
+cd /app/mock_aws_environment
+
+echo "Lambda function directory contents:"
+ls -la /var/task
+
+echo "Python path:"
+echo $PYTHONPATH
 
 echo "Starting SAM Local..."
-cd /app/mock_aws_environment && sam local start-lambda \
+sam local start-lambda \
+    --host 0.0.0.0 \
+    --port 3001 \
     --template template.yml \
     --docker-network bip-network \
+    --container-host host.docker.internal \
     --warm-containers EAGER \
     --debug \
-    --log-file /app/lambda.log \
-    --host 0.0.0.0 \
-    --port 3001 &
+    --log-file /app/lambda.log &
 
 # Give SAM more time to initialize
 echo "Waiting for Lambda to initialize..."

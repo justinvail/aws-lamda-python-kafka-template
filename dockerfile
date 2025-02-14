@@ -39,13 +39,20 @@ RUN pip3 install --upgrade pip && \
 # Create app directory
 WORKDIR /app
 
-# Expose necessary ports
+# Set up Lambda function
+RUN mkdir -p /var/task
+COPY lambda_function/lambda_function.py /var/task/
+COPY lambda_function/requirements.txt /var/task/
+
+# Install Lambda dependencies
+RUN cd /var/task && \
+    pip install -r requirements.txt
+
 EXPOSE 3001 9021 8081 9092
 
-# Set environment variables
 ENV DOCKER_HOST=unix:///var/run/docker.sock
 ENV AWS_SAM_CLI_TELEMETRY=0
-ENV PYTHONPATH=/app
+ENV PYTHONPATH=/var/task
 ENV LD_LIBRARY_PATH=/usr/lib64
 
 ENTRYPOINT ["/app/mock_aws_environment/docker-entrypoint.sh"]
