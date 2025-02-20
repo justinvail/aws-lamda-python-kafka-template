@@ -8,11 +8,12 @@ Resources:
       FunctionName: KafkaConsumerFunction
       Handler: lambda_function.handler
       Runtime: python3.9
-      CodeUri: /var/task
+      CodeUri: /tmp/lambda_package/lambda_function.zip
       Environment:
         Variables:
           KAFKA_BOOTSTRAP_SERVERS: "broker:29092"
           KAFKA_TOPIC: "user-id-change-topic"
+          DEBUG_MODE: "true"
       Events:
         KafkaEvent:
           Type: SelfManagedKafka
