@@ -1,6 +1,6 @@
 echo "Installing necessary CLIs and Libraries to a Python Virtual Environment (./.venv)"
 echo ""
-
+brew install pyenv
 #stops the execution of a script if a command or pipeline has an error
 set -e
 
