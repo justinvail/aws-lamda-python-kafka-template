@@ -123,7 +123,7 @@ def handler(event, context):
         # Check if we have records in the event
         records = event.get('Records', [])
         #TODO: replace with your AIDE password
-        password = "" 
+        password = ""
         #TODO: replace with your AIDE user
         username = ""
         req_proxies = {
@@ -161,6 +161,8 @@ def send_request(jwt,proxies, file_number):
         "Authorization": f"Bearer {jwt}",
         "X-Folder-URI": f"VETERAN:FILENUMBER:{file_number}",
     }
+    cert = ("static/vbms-internal.client.vbms.aide.oit.va.gov.crt", 
+            "static/vbms-internal.client.vbms.aide.oit.va.gov.open.key")
 
     try:
         response = requests.post( 
@@ -169,9 +171,8 @@ def send_request(jwt,proxies, file_number):
             json=request_data, 
             headers=req_headers,
             proxies=proxies,
-            verify=False,
-            cert=("static/vbms-internal.client.vbms.aide.oit.va.gov.crt", 
-                    "static/vbms-internal.client.vbms.aide.oit.va.gov.open.key")
+            cert=cert,
+            verify="static/lambda.pem"
         )
         logger.info(f"Results: {response.text}\n")
         return {
