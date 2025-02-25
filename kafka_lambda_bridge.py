@@ -28,7 +28,7 @@ def create_kafka_consumer():
 
 
 def invoke_lambda(messages):
-    lambda_url = "http://127.0.0.1:3001/2015-03-31/functions/KafkaConsumerFunction/invocations"
+    lambda_url = "http://localhost:3001/2015-03-31/functions/KafkaConsumerFunction/invocations"
 
     records = []
     for msg in messages:
@@ -86,7 +86,7 @@ def main():
     consumer.subscribe(['user-id-change-topic'])
 
     batch = []
-    batch_size = 10
+    batch_size = 1
 
     logger.info("Starting Kafka consumer bridge...")
     try:

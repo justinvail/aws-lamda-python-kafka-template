@@ -1,10 +1,20 @@
 import logging
+import requests
 from avro.io import DatumReader, BinaryDecoder
 from avro.schema import parse
 from io import BytesIO
 import base64
 import json
-import binascii
+import urllib.parse
+from argparse import ArgumentParser
+
+parser = ArgumentParser(description="Test Health")
+
+parser.add_argument("--jwt")
+parser.add_argument("--proxyUser", required=False)
+parser.add_argument("--proxyPassword", required=False)
+
+req_proxies = {}
 
 # Set up logging
 logger = logging.getLogger()
@@ -105,62 +115,95 @@ def process_record(record):
 
 def handler(event, context):
     """Main Lambda handler function."""
-    logger.info("Lambda function invoked")
-    logger.info(f"Full event structure: {json.dumps(event, indent=2)}")
-    logger.info(f"Context: {vars(context)}")
-
-    failed_records = []
+    logger.info("Lambda function invoked\n")
+    logger.info(f"Full event structure: {json.dumps(event, indent=2)}\n")
+    logger.info(f"Context: {vars(context)}\n")
 
     try:
         # Check if we have records in the event
         records = event.get('Records', [])
-        if not records:
-            logger.warning("No records found in event")
-            return {"batchItemFailures": []}
-
-        logger.info(f"Number of records received: {len(records)}")
-
-        # Log details of first record
-        if records:
-            first_record = records[0]
-            logger.info(f"First record structure: {json.dumps(first_record, indent=2)}")
-
-            # Log Kafka metadata if available
-            kafka_info = first_record.get('kafka', {})
-            if kafka_info:
-                logger.info(f"Kafka metadata: {json.dumps(kafka_info, indent=2)}")
-
-            # Examine the value format
-            value = first_record.get('value')
-            if value:
-                logger.info(f"Value type: {type(value)}")
-                try:
-                    # Try to decode if base64
-                    decoded = base64.b64decode(value)
-                    logger.info(f"Successfully decoded base64. Hex: {decoded.hex()[:100]}...")
-                except binascii.Error:
-                    logger.info("Value is not base64 encoded")
-                except Exception as e:
-                    logger.error(f"Error examining value: {str(e)}")
-
-        # Process each record
-        for record in records:
-            try:
-                result = process_record(record)
-                logger.info(f"Processed record result: {result}")
-            except Exception as e:
-                logger.error(f"Failed to process record: {str(e)}", exc_info=True)
-                failed_records.append({
-                    "itemIdentifier": record.get('kafka', {}).get('offset')
-                })
-
-        return {"batchItemFailures": failed_records}
+        #TODO: replace with your AIDE password
+        password = "" 
+        #TODO: replace with your AIDE user
+        username = ""
+        req_proxies = {
+            "http": f"http://{username}:{password}@host.docker.internal:9443",
+            "https": f"http://{username}:{password}@host.docker.internal:9443",
+            "ftp": f"http://{username}:{password}@host.docker.internal:9443"
+        }
+        #TODO: JWT should be retrieved from elsewhere.  This is from POSTMAN file search request
+        #TODO: File Number should be retrieved from Kafka message
+        response = send_request("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI3NmQxOWE2OC03MDA1LTRhNjgtOWEzNC03MzEzZmI0MjMzNzMiLCJpYXQiOjE1MTYyMzkwMjIsImlzcyI6ImRldmVsb3BlclRlc3RpbmciLCJhcHBsaWNhdGlvbklEIjoiVkJNUy1VSSIsInVzZXJJRCI6ImNob3dhcl9zc3VwZXIiLCJzdGF0aW9uSUQiOiIzMTcifQ.33CyN4lq3WnyON2F4m4SlctTBtonBaySjf_7NDCBLl4",
+                                req_proxies, "987267855")
+        return response
 
     except Exception as e:
         logger.error(f"Unexpected error in handler: {str(e)}", exc_info=True)
         return {
-            "batchItemFailures": [
-                {"itemIdentifier": record.get('kafka', {}).get('offset')}
-                for record in records
-            ]
+            "error": str(e)
         }
+    
+def send_request(jwt,proxies, file_number):
+    # TODO: sample request data from POSTMAN file search request.  This should be altered for actual solution
+    request_data = {
+        "pageRequest":{
+            "resultsPerPage":2,
+            "page":1
+        },
+        "filters":{
+            "providerData.documentTypeId":{
+                "evaluationType": "EQUALS",
+                "value": "134"
+            }
+        }
+    }
+    req_headers = {
+        "Authorization": f"Bearer {jwt}",
+        "X-Folder-URI": f"VETERAN:FILENUMBER:{file_number}",
+    }
+
+    try:
+        response = requests.post( 
+            #TODO: Host name needs to be dynamic
+            url="https://vefs-claimevidence-dev.dev.bip.va.gov/api/v1/rest/folders/files:search",
+            json=request_data, 
+            headers=req_headers,
+            proxies=proxies,
+            verify=False,
+            cert=("static/vbms-internal.client.vbms.aide.oit.va.gov.crt", 
+                    "static/vbms-internal.client.vbms.aide.oit.va.gov.open.key")
+        )
+        logger.info(f"Results: {response.text}\n")
+        return {
+            "Response Code": response.status_code,
+            "Payload": response.text
+        }
+    except requests.exceptions.ProxyError as e:
+        logger.info(f"ProxyError:\n {e}")
+        return {
+            "error": str(e)
+        }
+    except requests.exceptions.RequestException as e:
+        logger.info(f"RequestException:\n {e}")
+        return {
+            "error": str(e)
+        }
+    except Exception as e:
+        logger.info(f"An unexpected error occurred:\n {e}")
+        return {
+            "error": str(e)
+        }
+
+    
+if __name__ == "__main__":
+    args = parser.parse_args()
+
+    if args.proxyUser is not None and args.proxyPassword is not None:
+        escaped_password = urllib.parse.quote(args.proxyPassword)
+        proxy_url = f"http://{args.proxyUser}:{escaped_password}@host.docker.internal:9443"
+        req_proxies = {
+            "http": proxy_url,
+            "https": proxy_url,
+            "ftp": proxy_url
+        }
+        send_request(args.jwt, req_proxies)

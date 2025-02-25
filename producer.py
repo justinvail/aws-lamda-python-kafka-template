@@ -63,7 +63,7 @@ def main():
 
     # Produce some messages
     try:
-        for _ in range(10000):
+        for _ in range(2):
             data = generate_sample_data()
             # Serialize the data using Avro
             serialized_data = serialize_avro(data, None)
