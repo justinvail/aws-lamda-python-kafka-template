@@ -122,10 +122,10 @@ def handler(event, context):
     try:
         # Check if we have records in the event
         records = event.get('Records', [])
-        #TODO: replace with your AIDE password
-        password = ""
         #TODO: replace with your AIDE user
         username = ""
+        #TODO: replace with your AIDE password
+        password = ""
         req_proxies = {
             "http": f"http://{username}:{password}@host.docker.internal:9443",
             "https": f"http://{username}:{password}@host.docker.internal:9443",
