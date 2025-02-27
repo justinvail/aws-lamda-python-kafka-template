@@ -134,9 +134,8 @@ def handler(event, context):
         #TODO: JWT should be retrieved from elsewhere.  This is from POSTMAN file search request
         #TODO: File Numbers should be retrieved from Kafka message
         response = send_request("vefs-claimevidence-dev.dev.bip.va.gov", 
-                                "987267855", "987267856",
+                                "123456788", "09241999",
                                 "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI3NmQxOWE2OC03MDA1LTRhNjgtOWEzNC03MzEzZmI0MjMzNzMiLCJpYXQiOjE1MTYyMzkwMjIsImlzcyI6ImRldmVsb3BlclRlc3RpbmciLCJhcHBsaWNhdGlvbklEIjoiVkJNUy1VSSIsInVzZXJJRCI6ImNob3dhcl9zc3VwZXIiLCJzdGF0aW9uSUQiOiIzMTcifQ.33CyN4lq3WnyON2F4m4SlctTBtonBaySjf_7NDCBLl4",
-                                "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJqdGkiOiI5OTNjNDM3Ny04NDAxLTQ1ZDktOTJiYi0wZTM3MzYyOGQ3ZTgiLCJpYXQiOjE2NzI4NDk4NDMsImV4cCI6MzgyMDMzMzQ5MCwiaXNzIjoiZGV2ZWxvcGVyVGVzdGluZyIsImFwcGxpY2F0aW9uSUQiOiJkZXZlbG9wZXJUZXN0aW5nIiwidXNlcklEIjoiQU1PUkVFX1NTVVBFUiIsInN0YXRpb25JRCI6IjMxNyJ9.AEWxtHeaQbsrpfh0QKLQ1cN9t0bgLNqt_3hKvyQSqWg",
                                 req_proxies)
         return response
 
@@ -146,19 +145,14 @@ def handler(event, context):
             "error": str(e)
         }
     
-def send_request(host_name, source_number, dest_number, jwt_search, jwt_move, proxies):
+def send_request(host_name, source_number, dest_number, jwt_search, proxies):
     # TODO: sample request data from POSTMAN file search request.  This should be altered for actual solution
     request_data = {
         "pageRequest":{
             "resultsPerPage":2,
             "page":1
         },
-        "filters":{
-            "providerData.documentTypeId":{
-                "evaluationType": "EQUALS",
-                "value": "134"
-            }
-        }
+        "filters":{}
     }
     #TODO: I would hope we can pull a JWT which can do both, but our current Postman test requests have two separate ones.
     search_headers = {
@@ -166,7 +160,7 @@ def send_request(host_name, source_number, dest_number, jwt_search, jwt_move, pr
         "X-Folder-URI": f"VETERAN:FILENUMBER:{source_number}",
     }
     move_headers = {
-        "Authorization": f"Bearer {jwt_move}",
+        "Authorization": f"Bearer {jwt_search}",
         "X-Folder-URI": f"VETERAN:FILENUMBER:{dest_number}",
     }
     cert = ("static/vbms-internal.client.vbms.aide.oit.va.gov.crt", 
@@ -196,14 +190,14 @@ def send_request(host_name, source_number, dest_number, jwt_search, jwt_move, pr
                     cert=cert,
                     verify="static/lambda.pem"
                 )
-                logger.info(move_response.json())
+                logger.info(move_response.text)
                 if move_response.status_code != 200:
-                    raise Exception(f"Failed to move files associated with {source_number} to {dest_number}.\n")
+                    raise Exception(f"Failed to move files associated with {source_number} to {dest_number}.")
             return {
-                "Results": f"Successfully moved all files for File Number {source_number} to {dest_number}.\n"
+                "Results": f"Successfully moved all files for File Number {source_number} to {dest_number}."
             }
         else: 
-            raise Exception("Encountered error searching for files.\n")
+            raise Exception("Encountered error searching for files.")
     except requests.exceptions.ProxyError as e:
         logger.info(f"ProxyError:\n {e}")
         return {
