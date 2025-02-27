@@ -132,9 +132,12 @@ def handler(event, context):
             "ftp": f"http://{username}:{password}@host.docker.internal:9443"
         }
         #TODO: JWT should be retrieved from elsewhere.  This is from POSTMAN file search request
-        #TODO: File Number should be retrieved from Kafka message
-        response = send_request("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI3NmQxOWE2OC03MDA1LTRhNjgtOWEzNC03MzEzZmI0MjMzNzMiLCJpYXQiOjE1MTYyMzkwMjIsImlzcyI6ImRldmVsb3BlclRlc3RpbmciLCJhcHBsaWNhdGlvbklEIjoiVkJNUy1VSSIsInVzZXJJRCI6ImNob3dhcl9zc3VwZXIiLCJzdGF0aW9uSUQiOiIzMTcifQ.33CyN4lq3WnyON2F4m4SlctTBtonBaySjf_7NDCBLl4",
-                                req_proxies, "987267855")
+        #TODO: File Numbers should be retrieved from Kafka message
+        response = send_request("vefs-claimevidence-dev.dev.bip.va.gov", 
+                                "987267855", "987267856",
+                                "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI3NmQxOWE2OC03MDA1LTRhNjgtOWEzNC03MzEzZmI0MjMzNzMiLCJpYXQiOjE1MTYyMzkwMjIsImlzcyI6ImRldmVsb3BlclRlc3RpbmciLCJhcHBsaWNhdGlvbklEIjoiVkJNUy1VSSIsInVzZXJJRCI6ImNob3dhcl9zc3VwZXIiLCJzdGF0aW9uSUQiOiIzMTcifQ.33CyN4lq3WnyON2F4m4SlctTBtonBaySjf_7NDCBLl4",
+                                "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJqdGkiOiI5OTNjNDM3Ny04NDAxLTQ1ZDktOTJiYi0wZTM3MzYyOGQ3ZTgiLCJpYXQiOjE2NzI4NDk4NDMsImV4cCI6MzgyMDMzMzQ5MCwiaXNzIjoiZGV2ZWxvcGVyVGVzdGluZyIsImFwcGxpY2F0aW9uSUQiOiJkZXZlbG9wZXJUZXN0aW5nIiwidXNlcklEIjoiQU1PUkVFX1NTVVBFUiIsInN0YXRpb25JRCI6IjMxNyJ9.AEWxtHeaQbsrpfh0QKLQ1cN9t0bgLNqt_3hKvyQSqWg",
+                                req_proxies)
         return response
 
     except Exception as e:
@@ -143,7 +146,7 @@ def handler(event, context):
             "error": str(e)
         }
     
-def send_request(jwt,proxies, file_number):
+def send_request(host_name, source_number, dest_number, jwt_search, jwt_move, proxies):
     # TODO: sample request data from POSTMAN file search request.  This should be altered for actual solution
     request_data = {
         "pageRequest":{
@@ -157,28 +160,50 @@ def send_request(jwt,proxies, file_number):
             }
         }
     }
-    req_headers = {
-        "Authorization": f"Bearer {jwt}",
-        "X-Folder-URI": f"VETERAN:FILENUMBER:{file_number}",
+    #TODO: I would hope we can pull a JWT which can do both, but our current Postman test requests have two separate ones.
+    search_headers = {
+        "Authorization": f"Bearer {jwt_search}",
+        "X-Folder-URI": f"VETERAN:FILENUMBER:{source_number}",
+    }
+    move_headers = {
+        "Authorization": f"Bearer {jwt_move}",
+        "X-Folder-URI": f"VETERAN:FILENUMBER:{dest_number}",
     }
     cert = ("static/vbms-internal.client.vbms.aide.oit.va.gov.crt", 
             "static/vbms-internal.client.vbms.aide.oit.va.gov.open.key")
 
     try:
-        response = requests.post( 
+        search_response = requests.post( 
             #TODO: Host name needs to be dynamic
-            url="https://vefs-claimevidence-dev.dev.bip.va.gov/api/v1/rest/folders/files:search",
+            url=f"https://{host_name}/api/v1/rest/folders/files:search",
             json=request_data, 
-            headers=req_headers,
+            headers=search_headers,
             proxies=proxies,
             cert=cert,
             verify="static/lambda.pem"
         )
-        logger.info(f"Results: {response.text}\n")
-        return {
-            "Response Code": response.status_code,
-            "Payload": response.text
-        }
+        logger.info(search_response.json())
+        if search_response.status_code == 200:
+            json = search_response.json()
+            for file in json["files"]:
+                uuid = file["uuid"]
+                logger.info(uuid + "\n")
+                move_response = requests.patch( 
+                    #TODO: Host name needs to be dynamic
+                    url=f"https://{host_name}/api/v1/rest/files/{uuid}:move",
+                    headers=move_headers,
+                    proxies=proxies,
+                    cert=cert,
+                    verify="static/lambda.pem"
+                )
+                logger.info(move_response.json())
+                if move_response.status_code != 200:
+                    raise Exception(f"Failed to move files associated with {source_number} to {dest_number}.\n")
+            return {
+                "Results": f"Successfully moved all files for File Number {source_number} to {dest_number}.\n"
+            }
+        else: 
+            raise Exception("Encountered error searching for files.\n")
     except requests.exceptions.ProxyError as e:
         logger.info(f"ProxyError:\n {e}")
         return {
